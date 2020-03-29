@@ -166,7 +166,7 @@ async fn send_reminder_email(
 ) {
     if !todays_events.is_empty() {
         let mut email =
-            "Hi,\r\nI just wanted to remind you that today we will be having our ".to_string();
+            "Hi,\r\nI just want to remind you that today we will be having our ".to_string();
         for i in 0..todays_events.len() {
             let event = format!(
                 "{} from {} to {}",
