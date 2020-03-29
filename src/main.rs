@@ -171,8 +171,8 @@ async fn send_reminder_email(
             let event = format!(
                 "{} from {} to {}",
                 todays_events[i].title,
-                todays_events[i].start_time.format(""),
-                todays_events[i].end_time.format("")
+                todays_events[i].start_time.format("%-I:%M %p"),
+                todays_events[i].end_time.format("%-I:%M %p")
             );
             if todays_events.len() == 1 {
                 email = format!("{}{}.", email, event);
