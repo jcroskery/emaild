@@ -3,7 +3,7 @@ use chrono::{NaiveDate, NaiveTime};
 use mysql::*;
 
 use std::time::{SystemTime, UNIX_EPOCH};
-#[derive(Debug)]
+
 struct Calendar {
     id: i32,
     title: String,
@@ -66,12 +66,44 @@ async fn send_article_email(email_list: Vec<String>, access_token: String, title
 
 async fn send_calendar_email(email_list: Vec<String>, access_token: String, events: Vec<Calendar>) {
     if !events.is_empty() {
-        let mut email = "Hi everybody, \r\nThe upcoming choir practices will be on day-time, and on day-time. Also, the upcoming event will be on day-time".to_string();
-
-        println!("{:?}", events);
+        let mut email =
+            "Hi everybody, \r\nThe upcoming choir practices will be on day-time, and on day-time"
+                .to_string();
+        let mut choir_practices = vec![];
+        let mut other_event = None;
+        for event in events {
+            if event.practice {
+                choir_practices.push(event);
+            } else if let None = other_event {
+                other_event = Some(event);
+            }
+        }
+        if !choir_practices.is_empty() {
+            let plural = if choir_practices.len() > 1 { "s" } else { "" };
+            email = format!("{}The upcoming choir practice{} will be on ", email, plural);
+            for i in 0..choir_practices.len() {
+                
+            }
+        }
+        if let Some(event) = other_event {
+            email = format!(
+                "{} Also, the upcoming {} will be on {}, from {} to {}.",
+                email,
+                event.title,
+                event.date.format("%A, %B %-d"),
+                event.start_time.format("%-I:%M %p"),
+                event.end_time.format("%-I:%M %p")
+            );
+        }
         //println!("{:?}, {:?}", titles, dates);
         email = format!("{}\r\nThank you and God Bless!\r\n\r\nJustus", email);
-        gmail::send_email(email_list, "Upcoming Children's Choir Events", &email, &access_token).await;
+        gmail::send_email(
+            email_list,
+            "Upcoming Children's Choir Events",
+            &email,
+            &access_token,
+        )
+        .await;
     }
 }
 
