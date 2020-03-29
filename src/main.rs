@@ -1,17 +1,16 @@
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{Local, NaiveDate, NaiveTime};
 
 use mysql::*;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-struct Calendar {
-    id: i32,
+struct Event {
+    id: Option<i32>,
     title: String,
-    date: NaiveDate,
+    date: Option<NaiveDate>,
     start_time: NaiveTime,
     end_time: NaiveTime,
     practice: bool,
-    notes: String,
 }
 
 async fn get_refresh_token() -> Option<MyValue> {
@@ -58,17 +57,15 @@ async fn get_articles() -> Option<String> {
     Some(from_value(article[1].clone()))
 }
 
-async fn send_article_email(email_list: Vec<String>, access_token: String, title: Option<String>) {
+async fn send_article_email(email_list: Vec<String>, access_token: &str, title: Option<String>) {
     if let Some(title) = title {
-        gmail::send_email(email_list, &title, &format!("Hi everyone,\r\nThe {} are available on the Children's Choir website at olmmcc [dot] tk. Thank you and God Bless!\r\n\r\nJustus", title), &access_token).await;
+        gmail::send_email(email_list, &title, &format!("Hi everyone,\r\nThe {} are available on the Children's Choir website at olmmcc [dot] tk. Thank you and God Bless!\r\n\r\nJustus", title), access_token).await;
     }
 }
 
-async fn send_calendar_email(email_list: Vec<String>, access_token: String, events: Vec<Calendar>) {
+async fn send_calendar_email(email_list: Vec<String>, access_token: &str, events: Vec<Event>) {
     if !events.is_empty() {
-        let mut email =
-            "Hi everybody, \r\nThe upcoming choir practices will be on day-time, and on day-time"
-                .to_string();
+        let mut email = "Hi everybody, \r\n".to_string();
         let mut choir_practices = vec![];
         let mut other_event = None;
         for event in events {
@@ -80,9 +77,23 @@ async fn send_calendar_email(email_list: Vec<String>, access_token: String, even
         }
         if !choir_practices.is_empty() {
             let plural = if choir_practices.len() > 1 { "s" } else { "" };
-            email = format!("{}The upcoming choir practice{} will be on ", email, plural);
+            email = format!("{}This month's choir practice{} will be on ", email, plural);
             for i in 0..choir_practices.len() {
-                
+                let on_from_to = format!(
+                    "{}, from {} to {}",
+                    choir_practices[i].date.unwrap().format("%A, %B %-d"),
+                    choir_practices[i].start_time.format("%-I:%M %p"),
+                    choir_practices[i].end_time.format("%-I:%M %p")
+                );
+                if choir_practices.len() == 1 {
+                    email = format!("{}{}.", email, on_from_to,);
+                } else if i == choir_practices.len() - 1 {
+                    email = format!("{}, and on {}.", email, on_from_to,);
+                } else if i == 0 {
+                    email = format!("{}{}", email, on_from_to);
+                } else {
+                    email = format!("{}, on {}", email, on_from_to,);
+                }
             }
         }
         if let Some(event) = other_event {
@@ -90,18 +101,17 @@ async fn send_calendar_email(email_list: Vec<String>, access_token: String, even
                 "{} Also, the upcoming {} will be on {}, from {} to {}.",
                 email,
                 event.title,
-                event.date.format("%A, %B %-d"),
+                event.date.unwrap().format("%A, %B %-d"),
                 event.start_time.format("%-I:%M %p"),
                 event.end_time.format("%-I:%M %p")
             );
         }
-        //println!("{:?}, {:?}", titles, dates);
         email = format!("{}\r\nThank you and God Bless!\r\n\r\nJustus", email);
         gmail::send_email(
             email_list,
             "Upcoming Children's Choir Events",
             &email,
-            &access_token,
+            access_token,
         )
         .await;
     }
@@ -121,37 +131,81 @@ async fn get_email_list() -> Vec<String> {
     email_list
 }
 
-async fn get_calendar_events() -> Vec<Calendar> {
-    let events = get_like("calendar", "send_email", "1").await;
-    let events: Vec<Calendar> = events
+async fn get_reminder_list() -> Vec<String> {
+    let mut email_list = get_like("users", "subscription_policy", "2").await;
+    email_list.append(&mut get_like("admin", "subscription_policy", "2").await);
+    let mut email_list: Vec<_> = email_list
         .iter()
-        .map(|x| Calendar {
+        .map(|x| from_value(x[0].clone()))
+        .collect();
+    email_list.sort();
+    email_list.dedup();
+    email_list
+}
+
+async fn get_todays_events() -> Vec<Event> {
+    let local_time = Local::today().format("%Y-%m-%d").to_string();
+    let events = get_like("calendar", "date", &local_time).await;
+    events
+        .iter()
+        .map(|x| Event {
+            id: None,
+            title: from_value(x[1].clone()),
+            date: None,
+            start_time: from_value(x[3].clone()),
+            end_time: from_value(x[4].clone()),
+            practice: from_value(x[5].clone()),
+        })
+        .collect()
+}
+
+async fn send_reminder_email(
+    reminder_list: Vec<String>,
+    access_token: &str,
+    todays_events: Vec<Event>,
+) {
+}
+
+async fn get_calendar_events() -> Vec<Event> {
+    let events = get_like("calendar", "send_email", "1").await;
+    let events: Vec<Event> = events
+        .iter()
+        .map(|x| Event {
             id: from_value(x[0].clone()),
             title: from_value(x[1].clone()),
             date: from_value(x[2].clone()),
             start_time: from_value(x[3].clone()),
             end_time: from_value(x[4].clone()),
             practice: from_value(x[5].clone()),
-            notes: from_value(x[6].clone()),
         })
         .collect();
     for event in events.iter() {
-        change_row_where("articles", "id", &event.id.to_string(), "send_email", "0").await;
+        change_row_where(
+            "calendar",
+            "id",
+            &event.id.unwrap().to_string(),
+            "send_email",
+            "0",
+        )
+        .await;
     }
     events
 }
 
 async fn emaild() -> Option<()> {
-    let (access_token, title, email_list, events) = futures::join!(
+    let (access_token, title, email_list, events, todays_events, reminder_list) = futures::join!(
         get_access_token(),
         get_articles(),
         get_email_list(),
-        get_calendar_events()
+        get_calendar_events(),
+        get_todays_events(),
+        get_reminder_list(),
     );
     let access_token = access_token?;
     futures::join!(
-        send_article_email(email_list.clone(), access_token.clone(), title),
-        send_calendar_email(email_list, access_token, events)
+        send_article_email(email_list.clone(), &access_token, title),
+        send_calendar_email(email_list, &access_token, events),
+        send_reminder_email(reminder_list, &access_token, todays_events),
     );
     Some(())
 }
