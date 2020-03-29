@@ -164,6 +164,35 @@ async fn send_reminder_email(
     access_token: &str,
     todays_events: Vec<Event>,
 ) {
+    if !todays_events.is_empty() {
+        let mut email =
+            "Hi,\r\nI just wanted to remind you that today we will be having our ".to_string();
+        for i in 0..todays_events.len() {
+            let event = format!(
+                "{} from {} to {}",
+                todays_events[i].title,
+                todays_events[i].start_time.format(""),
+                todays_events[i].end_time.format("")
+            );
+            if todays_events.len() == 1 {
+                email = format!("{}{}.", email, event);
+            } else if i == todays_events.len() - 1 {
+                email = format!("{}, and our {}.", email, event);
+            } else if i == 0 {
+                email = format!("{}{}", email, event);
+            } else {
+                email = format!("{}, our {}", email, event);
+            }
+        }
+        email = format!("{}\r\nThank you and God Bless!\r\n\r\nJustus", email);
+        gmail::send_email(
+            reminder_list,
+            "Today's Children's Choir Events",
+            &email,
+            access_token,
+        )
+        .await;
+    }
 }
 
 async fn get_calendar_events() -> Vec<Event> {
