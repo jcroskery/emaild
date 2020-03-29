@@ -1,8 +1,18 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveTime};
 
 use mysql::*;
 
 use std::time::{SystemTime, UNIX_EPOCH};
+#[derive(Debug)]
+struct Calendar {
+    id: i32,
+    title: String,
+    date: NaiveDate,
+    start_time: NaiveTime,
+    end_time: NaiveTime,
+    practice: bool,
+    notes: String,
+}
 
 async fn get_refresh_token() -> Option<MyValue> {
     let mut return_token = None;
@@ -54,12 +64,15 @@ async fn send_article_email(email_list: Vec<String>, access_token: String, title
     }
 }
 
-async fn send_calendar_email(
-    email_list: Vec<String>,
-    access_token: String,
-    events: Option<(Vec<String>, Vec<NaiveDate>)>,
-) {
-    if let Some((titles, dates)) = events {}
+async fn send_calendar_email(email_list: Vec<String>, access_token: String, events: Vec<Calendar>) {
+    if !events.is_empty() {
+        let mut email = "Hi everybody, \r\nThe upcoming choir practices will be on day-time, and on day-time. Also, the upcoming event will be on day-time".to_string();
+
+        println!("{:?}", events);
+        //println!("{:?}, {:?}", titles, dates);
+        email = format!("{}\r\nThank you and God Bless!\r\n\r\nJustus", email);
+        gmail::send_email(email_list, "Upcoming Children's Choir Events", &email, &access_token).await;
+    }
 }
 
 async fn get_email_list() -> Vec<String> {
@@ -76,8 +89,24 @@ async fn get_email_list() -> Vec<String> {
     email_list
 }
 
-async fn get_calendar_events() -> Option<(Vec<String>, Vec<NaiveDate>)> {
-    None
+async fn get_calendar_events() -> Vec<Calendar> {
+    let events = get_like("calendar", "send_email", "1").await;
+    let events: Vec<Calendar> = events
+        .iter()
+        .map(|x| Calendar {
+            id: from_value(x[0].clone()),
+            title: from_value(x[1].clone()),
+            date: from_value(x[2].clone()),
+            start_time: from_value(x[3].clone()),
+            end_time: from_value(x[4].clone()),
+            practice: from_value(x[5].clone()),
+            notes: from_value(x[6].clone()),
+        })
+        .collect();
+    for event in events.iter() {
+        change_row_where("articles", "id", &event.id.to_string(), "send_email", "0").await;
+    }
+    events
 }
 
 async fn emaild() -> Option<()> {
