@@ -10,7 +10,7 @@ struct Event {
     date: Option<NaiveDate>,
     start_time: NaiveTime,
     end_time: NaiveTime,
-    practice: bool,
+    practice: Option<bool>,
 }
 
 async fn get_refresh_token() -> Option<MyValue> {
@@ -69,7 +69,7 @@ async fn send_calendar_email(email_list: Vec<String>, access_token: &str, events
         let mut choir_practices = vec![];
         let mut other_event = None;
         for event in events {
-            if event.practice {
+            if event.practice.unwrap() {
                 choir_practices.push(event);
             } else if let None = other_event {
                 other_event = Some(event);
@@ -154,7 +154,7 @@ async fn get_todays_events() -> Vec<Event> {
             date: None,
             start_time: from_value(x[3].clone()),
             end_time: from_value(x[4].clone()),
-            practice: from_value(x[5].clone()),
+            practice: None,
         })
         .collect()
 }
@@ -166,7 +166,7 @@ async fn send_reminder_email(
 ) {
     if !todays_events.is_empty() {
         let mut email =
-            "Hi,\r\nI just want to remind you that today we will be having our ".to_string();
+            "Hi,\r\nI just want to remind you that today we will be having a ".to_string();
         for i in 0..todays_events.len() {
             let event = format!(
                 "{} from {} to {}",
@@ -177,11 +177,11 @@ async fn send_reminder_email(
             if todays_events.len() == 1 {
                 email = format!("{}{}.", email, event);
             } else if i == todays_events.len() - 1 {
-                email = format!("{}, and our {}.", email, event);
+                email = format!("{}, and a {}.", email, event);
             } else if i == 0 {
                 email = format!("{}{}", email, event);
             } else {
-                email = format!("{}, our {}", email, event);
+                email = format!("{}, a {}", email, event);
             }
         }
         email = format!("{}\r\nThank you and God Bless!\r\n\r\nJustus", email);
@@ -200,12 +200,12 @@ async fn get_calendar_events() -> Vec<Event> {
     let events: Vec<Event> = events
         .iter()
         .map(|x| Event {
-            id: from_value(x[0].clone()),
+            id: Some(from_value(x[0].clone())),
             title: from_value(x[1].clone()),
-            date: from_value(x[2].clone()),
+            date: Some(from_value(x[2].clone())),
             start_time: from_value(x[3].clone()),
             end_time: from_value(x[4].clone()),
-            practice: from_value(x[5].clone()),
+            practice: Some(from_value(x[5].clone())),
         })
         .collect();
     for event in events.iter() {
